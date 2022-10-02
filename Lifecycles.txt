@@ -176,13 +176,11 @@ OnUserInteraction
 Kullanıcı ekrana dokunduğunda herhangi bir işlem için bu method çalışır.
 
 
-
 OnUserLeaveHint
 Örneğin, kullanıcı Ana Ekran tuşuna bastığında, OnUserLeaveHint mehodu çağrılır,ancak gelen 
 bir telefon görüşmesi vb. durumlarda,OnUserLeaveHint, kesintiye uğrayan etkinlikte 
 çağrılmaz. Activity arka plana alınırken,eğer bu bir kullanıcı seçimiyse OnPause methodu 
 çağrılmadan hemen önce OnUserLeaveHint çağrılır.
-
 
 
 OnActivityResult
@@ -201,7 +199,7 @@ activity’i tamamlar, ancak istediğiniz şeyi yapmak için ön tanımlı metho
 edebilirsiniz.
 
 
-Fragment'ta Lifecycle
+Fragment'ta Lifecycle:
 
 
 OnAttachFragment
@@ -215,8 +213,9 @@ yapmamışsa çağrılır.
 OnCreateView
 
 Fragment’in UI kısmını başlatması için çağrılır. Bu isteğe bağlıdır ve grafiksel olmayan 
-parçalar boş değer döndürür.Lifecycle’da gördüğünüz üzere methodumuz OnCreate ve 
+parçalar boş değer döndürür. Lifecycle’da gördüğünüz üzere methodumuz OnCreate ve 
 OnActivityCreated arasında çağrılacak.
+
 
 Bu methodlara dair örnek kod parçası:
 
@@ -339,9 +338,88 @@ class MainActivity : AppCompatActivity() {
 
 }
 
+Android LifeCycle Problemleri?
+
+Android Yaşam döngüsü geliştiricileri temelde kusurlu bir tasarıma yönlendirir.
+Başlangıçta, Square gibi geliştiriciler, Activity yaşam döngüsüyle ilgili sorunlara 
+atfedilen zorlukları ve zorlu hataları fark ettiler. Yıllar geçtikçe, Etkinlik yaşam 
+döngüsünün, Google'ın Uygulama Mimarisini tam olarak anlamadan önce tasarlandığı ortaya çıktı.
+
+Buradaki temel mimari sorun, geliştiriciler bir etkinliği, Depolama gibi işlemlerin kullanım 
+ömrüne göre belirlenen nesnelerle bağlandığında ortaya çıkar. Şu anda oturum açmış olan kullanıcı 
+için bir Profil nesnesinin varlığına bağlı olarak farklı bir görünüm çizmek tercih sebebi olabilir. 
+Örneğin, bir kullanıcı adını oluşturan görünüm. Bir Profil nesnesi Aktiviteye değil, Uygulamaya 
+bağlı bir yaşam döngüsüne sahip bir Depo tarafından sağlanacağından, geliştirici olarak bir Depo 
+başlatıldığında(ve dolayısıyla bir Profil kullanılabilir hale geldiğinde) Aktivite yaşam döngünüzün 
+ortasında ne olacağını düşünmelisiniz.  
+
+
+Uygulama kapsamındaki verilerin ne zaman kullanılabilir olduğuna ilişkin belirsizlik, Görünümlerinizi 
+ne zaman ve nasıl başlattığınızı ve RxJava streams subscription'ı, LiveData'yı vs. ne zaman 
+ve nasıl başlatacağınızı etkiler.
+
+
+Android yaşam döngüsü yöntemleri hiçbir zaman Temiz MVVM mimarisi için tasarlanmamıştır. Clean MVVM 
+mimarisi, yaşam döngüsü olarak adlandırdığımız kendi özel lifecycle'ımız için bir giriş noktası 
+olmaktan başka bir şey için kullanılmıyor.
+
+Subscriptions'ı başlatmamız, onCreate() veya onStart() içinde kurmamız gerçekten önemli mi? Kullanıcı 
+deneyimi aynı değil mi? Kesinlikle hayır. Android processlerin ölümü gibi durumlar nedeniyle, 
+uygulama kapsamlı verilere (yani, Activityler arasında paylaşılan ve uygulama kapsamlı yaşam döngüsüne 
+sahip bir nesneye eklenmiş veriler) erişerek görünümleri yapılandırmaya çalışırsanız, sonunda 
+NullPointerException ile karşılaşırsınız ve uygulamanız çöker. 
+
+
+Clean MVVM Activity Lifecycle
+
+Bir MVVM mimarisiyle çalışan her Android geliştiricisi, görünümleri ve abonelikleri nasıl ve ne zaman 
+yapılandıracağı konusunda seçim yapmakla karşı karşıyadır. Bunu yanlış yapıldığında  
+NullPointerExceptions ile karşılaşılır.
+
+Bu sonuçlardan kaçınmak, kodunuzu basitleştirmek ve mimarinizi düzene sokmak için clean MVVM activity 
+Yaşam Döngüsü adı verilen Activity ve Fragment lifecycle geliştildi.
+
+Bu yaşam döngüsü, onCreate() ve onResume() arasında standart Android Activity yaşam döngüsünün yanında
+etkinlik gösterir.
+
+Bir developer olarak, neredeyse her zaman tamamlamak istediğimiz iki temel işlev ve duymak istediğimiz 
+bir temel olay vardır:
+
+*View'ların kurulumu ve özelleştirilmesi,
+*İster RxJava ister LiveData olsun, activity streamer'larına abone olunması,
+*Kurulum işleminin ne zaman %100 tamamlandığının bilinmesi.
+
+onSetupViews() 
+
+Bu, özel olarak uygulanan Clean MVVM yaşam döngüsü yöntemlerinin ilkidir. OnCreate() değil!
+
+
+onSetupLiveDataEventSubscriptions()
+
+Burada, çoğu durumda ViewModel'de depolanan state değişikliği subscribe'ı olan LiveData 
+abonelikleri ayarlanır.
+
+
+onInitializationComplete() 
+
+Bu yöntemin yalnızca repository'nin başlatılması tamamlandıktan, görünüm ve aboneliklerimiz ayarlandıktan ve 
+Aktivite veya Fragment görünür hale geldikten sonra(yani uygulama arka planda değil) çağrılacağı garanti edilir. 
+Deep link veya notification intenti gibi herhangi bir kurulum sonrası işlem buraya yerleştirilebilir.
+
+
+onStart() / onResume() 
+Yukarıda anlatılan yöntemleri kullanıldığında, bu iki yöntemde herhangi bir koda ihtiyaç yoktur. Görünümlere 
+hiçbir zaman doğrudan onStart() veya onResume() içinde erişmiyoruz çünkü artık onSetupViews() asenkron olduğundan, 
+viewların bu noktada başlatılacağının garantisi yoktur.
+
+Not:
+Aktivite ve Fragment lifeCycyleları farklı callbacklere sahip olabilseler de aynı kural ve kalıplara dahildirler.
 
 
 
 Kaynak:
+
 https://umiitkose.com/2020/02/android-activity-lifecycle/
 https://developer.android.com/guide/components/activities/activity-lifecycle
+https://proandroiddev.com/android-activity-lifecycle-considered-harmful-98a5b00d287
+https://medium.com/p/56baf8b19078
