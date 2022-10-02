@@ -1,5 +1,7 @@
 # week-2-assignment-aliatillaydemir
 week-2-assignment-aliatillaydemir created by GitHub Classroom
+
+Lifecycle assignment -> https://github.com/Pazarama-Android-Kotlin-Bootcamp/week-2-assignment-aliatillaydemir/blob/main/Lifecycles.txt
 <br/><br/>
 
 ## Splash Screen
